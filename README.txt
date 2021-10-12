@@ -1,0 +1,7 @@
+DumpApplic is a backup tape journaling application.
+The operator is responsible to add the tapes(bar codes) into the database using the program and specify for what backup type are used for.
+In the basic data section there is the option to add,edit,delete tapes or systems.
+In the backup settings section the operator has to setup the daily backup days and the end of the week backup day (the backup can be weekly, monthly(first selected day of the next month) and yearly).
+In the backup plan section the operator can see in the calendar weekly backups of current month.
+In the main window the algorithm will retrieve from the database daily backup tapes which are needed to be checked and inserted into the backup library.
+In the history section all backup journal can be seen.
