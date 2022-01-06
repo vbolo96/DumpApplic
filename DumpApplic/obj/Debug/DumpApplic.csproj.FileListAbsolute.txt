@@ -24,6 +24,7 @@ C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\CheckTapes.g.cs
 C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\CheckTapes.baml
 C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\Login.g.cs
 C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\Login.baml
-C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\DumpApplic.csprojAssemblyReference.cache
-C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\bin\Debug\Database\DumpApp.mdf
 C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\DumpApplic_Content.g.cs
+C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\bin\Debug\Database\DumpApplicDB.mdf
+C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\bin\Debug\Database\DumpApplicDB_log.ldf
+C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Debug\DumpApplic.csproj.AssemblyReference.cache

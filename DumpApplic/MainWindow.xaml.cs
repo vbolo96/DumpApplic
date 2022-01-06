@@ -15,6 +15,7 @@ using System.Windows.Shapes;
 using System.Configuration;
 using System.Data.SqlClient;
 using System.Data;
+using System.IO;
 
 namespace DumpApplic
 {
@@ -25,11 +26,11 @@ namespace DumpApplic
     {
         
         SqlConnection sqlConnection;
-       
         Window checkDailyTapes = new Window();
         public MainWindow()
         {
             InitializeComponent();
+            
             this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
             //string connectionString = ConfigurationManager.ConnectionStrings["DumpApplic.Properties.Settings.DumpAppConnectionString"].ConnectionString;
             sqlConnection = new SqlConnection(Helper.CnnValue(Helper.database));
@@ -1584,9 +1585,10 @@ namespace DumpApplic
             sqlConnection.Open();
             try
             {
-                TapesAlreadyChecked = sqlCommand1.ExecuteScalar().ToString();
+                var obj = sqlCommand1.ExecuteScalar();
+                TapesAlreadyChecked = (obj == null ? "" : obj.ToString());
             }
-            catch { };
+            catch(Exception exe) { MessageBox.Show(exe.ToString()); };
             if (TapesAlreadyChecked=="")//if daily tapes are not already checked then the new Check tapes window will pop up
                 CT.Show();
             else { MessageBox.Show("Tapes already checked!"); }

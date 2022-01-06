@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -27,8 +28,11 @@ namespace DumpApplic
         {
             InitializeComponent();
             this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            string projectDirectory = Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName;
+            AppDomain.CurrentDomain.SetData("DataDirectory", projectDirectory);
             //string connectionString = ConfigurationManager.ConnectionStrings["DumpApplic.Properties.Settings.DumpAppConnectionString"].ConnectionString;
             sqlconnection = new SqlConnection(Helper.CnnValue(Helper.database));
+
         }
 
         private void LoginBtn_Click(object sender, RoutedEventArgs e)
