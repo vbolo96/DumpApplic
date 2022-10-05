@@ -16,7 +16,7 @@ namespace DumpApplic
         string monthlyTapePattern = "^[A-Z]{3,9}\\sMONTHEND\\s[A-Z]{2,}\\sTAPE\\s[1-9]{1,2}$";
         string yearlyTapePattern = "^YEARLY\\s[A-Z]{2,}\\sTAPE\\s[1-9]{1,2}$";
         string usernamePattern = "[a-z]{5}$";
-        string systemPattern = "[A-Z]{2,}$";
+        string systemPattern = "[A-Za-z]$";
 
         public bool matchTape(string text)
         {

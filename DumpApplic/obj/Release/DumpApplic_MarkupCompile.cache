@@ -4,17 +4,17 @@
 winexe
 C#
 .cs
-C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\obj\Release\
+C:\Users\Valentin\Source\Repos\DumpApplic\DumpApplic\obj\Release\
 DumpApplic
 none
 false
 TRACE
-C:\Users\Valentin\source\repos\DumpApplic\DumpApplic\App.xaml
-3695719059
-
-8-1957946440
+C:\Users\Valentin\Source\Repos\DumpApplic\DumpApplic\App.xaml
+7626609089
+2152632462
+151567170082
 14-799888181
-AddTape.xaml;EditTape.xaml;MainWindow.xaml;
+AddSystem.xaml;AddTape.xaml;CheckTapes.xaml;EditSystem.xaml;EditTape.xaml;Login.xaml;MainWindow.xaml;
 
 True
 

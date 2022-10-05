@@ -112,6 +112,7 @@
     <Compile Include="CheckTapes.xaml.cs">
       <DependentUpon>CheckTapes.xaml</DependentUpon>
     </Compile>
+    <Compile Include="DataLayer.cs" />
     <Compile Include="DumpAppDataSet.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

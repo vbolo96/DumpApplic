@@ -54,7 +54,7 @@ namespace DumpApplic
             {
                 Patterns patterns = new Patterns();
                 bool allgood = true;
-                if (patterns.matchTape(systemNameBox.Text.ToString()) == false)//checking text using regular expressions
+                if (patterns.matchSystem(systemNameBox.Text.ToString()) == false)//checking text using regular expressions
                 {
                     MessageBox.Show("System name should contain only letters and digits!");
                     allgood = false;
@@ -80,7 +80,7 @@ namespace DumpApplic
                         sqlConnection.Close();
                         MessageBox.Show("System updated successfully!!");
                         this.Close();
-
+                       
                     }
                 }
                 

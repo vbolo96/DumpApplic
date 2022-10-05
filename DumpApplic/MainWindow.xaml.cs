@@ -19,12 +19,8 @@ using System.IO;
 
 namespace DumpApplic
 {
-
-
-
     public partial class MainWindow : Window
-    {
-        
+    {       
         SqlConnection sqlConnection;
         Window checkDailyTapes = new Window();
         public MainWindow()
@@ -36,8 +32,7 @@ namespace DumpApplic
             sqlConnection = new SqlConnection(Helper.CnnValue(Helper.database));
             showDailyTapes();
             initializeDailyBackupDays();
-            initializeWeeklyCB();
-                      
+            initializeWeeklyCB();                    
         }
 
         #region Daily Tapes
@@ -52,110 +47,46 @@ namespace DumpApplic
             backupHistoryPanel.Visibility = Visibility.Collapsed;
             try
             {
-                List<string> dailyBackupDays = new List<string>();//the list with daily backup days
-                string weeklyBackupDay = "";
-                sqlConnection.Open();
-                //get days for daily backup from database (ex: if Monday has State 1 in database add it to the list)
-                string query = "select Day from Days where State=1";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    dailyBackupDays.Add(reader.GetString(0));
-                }
-                reader.Close();
-                query = "select Day from Days where Weekly=1"; //getting the weekly backup day marked in table Days column Weekly=1
-                sqlCommand = new SqlCommand(query, sqlConnection);
-                reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    weeklyBackupDay = reader.GetString(0);
-                }
-                reader.Close();
+                List<string> dailyBackupDays = DataLayer.GetDailyBackupDays();//the list with daily backup days
+                string weeklyBackupDay = DataLayer.GetWeeklyBackupDay();//string with the weekly backup day
+                
+                
                 string today = DateTime.Now.AddDays(0).DayOfWeek.ToString();// finding which day of the week is today in order to search for the tapes and display them
                 List<string> todayTapes = new List<string>();// today tapes list
+
+                //we need 2 lists in order to distinguish the monthend backup day from regular weekly backup day
+                List<string> weeklyBackupDates = DataLayer.GetWeeklyBackupDates(DateTime.Now.AddDays(0).Date);
+                List<string> MonthEndBackupDate = DataLayer.GetMonthlyBackupDate(weeklyBackupDay);
+                DataTable DailyBackupList = new DataTable();// table table with daily tapes list
 
 
                 if (dailyBackupDays.Contains(today))// if today is marked as a daily backup day
                 {
                     //query to extract daily tapes information; Details should be like 'DAILY TAPE 1'
-                    query = "select DISTINCT System,BackupType,Details from Tapes where BackupType='Daily' and Details like 'DAILY%'+@day";
-                    sqlCommand = new SqlCommand(query, sqlConnection);
-                    sqlCommand.Parameters.AddWithValue("@day", (dailyBackupDays.IndexOf(today) + 1).ToString());
-                    SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                    using (sqlAdapter)
-                    {
-                        DataTable DailyBackupList = new DataTable();//creating new data table to fill the grid view with
-                        sqlAdapter.Fill(DailyBackupList);
-                        GridTodayTapes.ItemsSource = DailyBackupList.DefaultView;
-                    }
+                    string query = "select DISTINCT System,BackupType,Details from Tapes where BackupType='Daily' and Details like 'DAILY%'+@day";
+                   
+                    DailyBackupList = DataLayer.FillDailyTapesTable(today, query, dailyBackupDays,weeklyBackupDates);
+                    
                 }
                 else if (weeklyBackupDay == today.ToString())//if today is marked as a weekly backup day
                 {
                     DateTime weekly = DateTime.Now.AddDays(0).Date;
-                    //we need 2 lists in order to distinguish the monthend backup day from regular weekly backup day
-                    List<string> weeklyBackupDates= new List<string>();
-                    List<string> MonthEndBackupDate = new List<string>();
-                    DateTime nextMonth = weekly.AddMonths(1);//setting the next month
-                    //"first" variable will be the iterator used to search the first weekly day of current month in order to mark it as previous monthend backup day
-                    DateTime first = new DateTime(DateTime.Now.Year,DateTime.Now.Month,1);
-                    
-                    for (var d = first; d < first.AddDays(7); d = d.AddDays(1))
-                    {
-                        if (d.DayOfWeek.ToString() == weeklyBackupDay)
-                        {
-                            MonthEndBackupDate.Add(d.ToLongDateString());//we have found the monthend backup day and add it to the list
-                            weekly = d;
-                            break;
-                        }
-                    }
-                    if (nextMonth.Month != 1)//if the next month is not january
-                    {
-                        while (weekly.Month < nextMonth.Month)//while we are still in the current month
-                        {
-                            weekly = weekly.AddDays(7);// getting all weekly backup days from week to week
-                            if (weekly.Month < nextMonth.Month)
-                                weeklyBackupDates.Add(weekly.ToLongDateString());// adding weekly backup days to the list
-                        }
-                    }
-                    else// the rest of the cases where month is NOT January
-                    {
-                        while (weekly.Month > nextMonth.Month)
-                        {
-                            weekly = weekly.AddDays(7);
-                            if (weekly.Month > nextMonth.Month)
-                                weeklyBackupDates.Add(weekly.ToLongDateString());
-                        }
-                    }
-
+                                       
                     //if today is a weekly backup date we gather the information needed from Tapes table and add the to the grid view
                     if (weeklyBackupDates.Contains(DateTime.Now.AddDays(0).ToLongDateString()))
                     {
-                        query = "select distinct System,BackupType from Tapes where BackupType='Weekly' and Details like 'WEEK '+@week+'%'";
-                        sqlCommand = new SqlCommand(query, sqlConnection);
-                        sqlCommand.Parameters.AddWithValue("@week", (weeklyBackupDates.IndexOf(DateTime.Now.AddDays(0).ToLongDateString()) + 1).ToString());
-                        SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                        using (sqlAdapter)
-                        {
-                            DataTable DailyBackupList = new DataTable();
-                            sqlAdapter.Fill(DailyBackupList);
-                            GridTodayTapes.ItemsSource = DailyBackupList.DefaultView;
-                        }
+                        string query = "select distinct System,BackupType from Tapes where BackupType='Weekly' and Details like 'WEEK '+@week+'%'";
+                        
+                        DailyBackupList = DataLayer.FillDailyTapesTable(today, query, dailyBackupDays, weeklyBackupDates);
+                      
                     }
-                    else if (MonthEndBackupDate.Contains(DateTime.Now.AddDays(0).ToLongDateString()))//if todya is monthend backup date
+                    else if (MonthEndBackupDate.Contains(DateTime.Now.AddDays(0).ToLongDateString()))//if today is monthend backup date
                     {
-                        query = "select DISTINCT System,BackupType from Tapes where BackupType='Monthly' and Details like @month+' MONTHEND%'";
-                        sqlCommand = new SqlCommand(query, sqlConnection);
-                        sqlCommand.Parameters.AddWithValue("@month", GetMonthName(DateTime.Now.AddMonths(-1).Month).ToUpper());
-                        SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                        using (sqlAdapter)
-                        {
-                            DataTable DailyBackupList = new DataTable();
-                            sqlAdapter.Fill(DailyBackupList);
-                            GridTodayTapes.ItemsSource = DailyBackupList.DefaultView;
-                        }
+                        string query = "select DISTINCT System,BackupType from Tapes where BackupType='Monthly' and Details like @month+' MONTHEND%'";
+                        DailyBackupList = DataLayer.FillDailyTapesTable(today, query, dailyBackupDays, weeklyBackupDates);
                     }
-                }         
+                }
+                GridTodayTapes.ItemsSource = DailyBackupList.DefaultView;
             }
             catch (Exception exe)
             {
@@ -172,7 +103,6 @@ namespace DumpApplic
             Environment.Exit(0);
         }//main exit button event which will close the application
         #endregion
-
         //menu items and their actions
         #region Menu Items 
 
@@ -190,27 +120,16 @@ namespace DumpApplic
             backupSettingsPanel.Visibility = Visibility.Collapsed;
             basicDataSystemsPanel.Visibility = Visibility.Collapsed;
             backupHistoryPanel.Visibility = Visibility.Collapsed;
+            DataTable tapesList = new DataTable();
             try
             {
-                string query = "select BarCode,System,BackupType,Details from Tapes";             
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                //we pass the sql command to the sql data adapter
-                SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-
-                using (sqlAdapter)
-                {
-
-                    DataTable tapesList = new DataTable();
-                    sqlAdapter.Fill(tapesList);//fill action of the sqladapter is populating the data table with the info from database
-
-                    basicDataGrid.ItemsSource = tapesList.DefaultView;// data grid's source is data table's default view
-
-                }
+                tapesList = DataLayer.FillBasicDataTable();
             }
             catch (Exception exe)
             {
                 MessageBox.Show(exe.ToString());
             }
+            basicDataGrid.ItemsSource = tapesList.DefaultView;
         }
         //this windows is displaying the daily and weekly backup days
         private void showBackupSettings(object sender, RoutedEventArgs e)
@@ -244,23 +163,19 @@ namespace DumpApplic
             backupSettingsPanel.Visibility = Visibility.Collapsed;
             basicDataSystemsPanel.Visibility = Visibility.Collapsed;
             backupHistoryPanel.Visibility = Visibility.Visible;
+            
+            DataTable HistoryList = new DataTable();
 
-            try
+            try 
             {
-                string query = "select * from History";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);              
-                SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                using (sqlAdapter)
-                {
-                    DataTable historyList = new DataTable();
-                    sqlAdapter.Fill(historyList);
-                    HistoryGrid.ItemsSource = historyList.DefaultView;
-                }
+                HistoryList = DataLayer.FillHistoryTable();
             }
             catch (Exception exe)
             {
                 MessageBox.Show(exe.ToString());
             }
+
+            HistoryGrid.ItemsSource = HistoryList.DefaultView;
         }
         #endregion
 
@@ -281,6 +196,7 @@ namespace DumpApplic
         {
             AddTape AT = new AddTape();//new window will pop up for adding a new tape in the database
             AT.Show();
+            refreshGrid();
         }
 
         private void EditTapeButton_Click(object sender, RoutedEventArgs e)
@@ -337,46 +253,24 @@ namespace DumpApplic
         }
         private void RefreshTapeButton_Click(object sender, RoutedEventArgs e)
         {
-            //refreshing the basic data grid 
-            try
-            {
-                string query = "select BarCode,System,BackupType,Details from Tapes";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);              
-                SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                using (sqlAdapter)
-                {
-
-                    DataTable tapesList = new DataTable();
-                    sqlAdapter.Fill(tapesList);
-
-                    basicDataGrid.ItemsSource = tapesList.DefaultView;
-
-                }
-            }
-            catch (Exception exe)
-            {
-                MessageBox.Show(exe.ToString());
-            }
+            basicDataGrid.Columns.Clear();
+            
+            refreshGrid();
         }
         private void refreshGrid()
         {
             //refresh basic data grid method
+            DataTable tapesList = new DataTable();
+            //refreshing the basic data grid 
             try
             {
-                string query = "select BarCode,System,BackupType,Details from Tapes";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                using (sqlAdapter)
-                {
-                    DataTable tapesList = new DataTable();
-                    sqlAdapter.Fill(tapesList);
-                    basicDataGrid.ItemsSource = tapesList.DefaultView;
-                }
+                tapesList = DataLayer.FillBasicDataTable();
             }
             catch (Exception exe)
             {
                 MessageBox.Show(exe.ToString());
             }
+            basicDataGrid.ItemsSource = tapesList.DefaultView;
         }
         
         #endregion
@@ -387,6 +281,7 @@ namespace DumpApplic
         {
             AddSystem AS = new AddSystem();//pops out a new window for adding a new system name to the database
             AS.Show();
+            refreshSystems();//refreshing the systems grid
         }
         private void EditSystemButton_Click(object sender, RoutedEventArgs e)
         {
@@ -397,12 +292,14 @@ namespace DumpApplic
                 ES.getSystemToModify(rowview.Row.ItemArray[0].ToString());//passing the selected name of the system as parameter
                 ES.systemNameBox.Text = rowview.Row.ItemArray[0].ToString();//initialize the object in the new edit window
                 ES.Show();
-                RefreshSystemButton_Click(sender, e);//refreshing the systems grid
+                
             }
             else
             {
                 MessageBox.Show("Please select one tape to edit!");
             }
+            
+            refreshSystems();//refreshing the systems grid
         }
         private void deleteSystemButton_Click(object sender, RoutedEventArgs e)
         {
@@ -429,7 +326,7 @@ namespace DumpApplic
                         sqlConnection.Close();
                     }
                 }
-                RefreshSystemButton_Click(sender, e);
+                refreshSystems();
             }
             else
             {
@@ -438,23 +335,23 @@ namespace DumpApplic
         }
         private void RefreshSystemButton_Click(object sender, RoutedEventArgs e)
         {
+            refreshSystems();
+        }
+        private void refreshSystems()
+        {
+            DataTable systemsList = new DataTable();
             //refreshing systems grid
             try
             {
-                string query = "select Name from Systems";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);           
-                SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                using (sqlAdapter)
-                {
-                    DataTable systemsList = new DataTable();
-                    sqlAdapter.Fill(systemsList);
-                    basicDataSystemsGrid.ItemsSource = systemsList.DefaultView;
-                }
+                systemsList = DataLayer.FillBasicDataSystemsTable();
             }
             catch (Exception exe)
             {
                 MessageBox.Show(exe.ToString());
             }
+            basicDataSystemsGrid.ItemsSource = null;
+            basicDataSystemsGrid.Items.Clear();
+            basicDataSystemsGrid.ItemsSource = systemsList.DefaultView;
         }
        
         private void TapesButton_Click(object sender, RoutedEventArgs e)
@@ -465,22 +362,17 @@ namespace DumpApplic
         {
             basicDataPanel.Visibility = Visibility.Collapsed;
             basicDataSystemsPanel.Visibility = Visibility.Visible;
+            DataTable systemsList = new DataTable();
+            //refreshing systems grid
             try
             {
-                string query = "select Name from Systems";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                SqlDataAdapter sqlAdapter = new SqlDataAdapter(sqlCommand);
-                using (sqlAdapter)
-                {
-                    DataTable systemsList = new DataTable();
-                    sqlAdapter.Fill(systemsList);
-                    basicDataSystemsGrid.ItemsSource = systemsList.DefaultView;
-                }
+                systemsList = DataLayer.FillBasicDataSystemsTable();
             }
             catch (Exception exe)
             {
                 MessageBox.Show(exe.ToString());
             }
+            basicDataSystemsGrid.ItemsSource = systemsList.DefaultView;
         }
         #endregion
 
@@ -494,21 +386,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Monday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Monday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Monday");
                 }
                 else
                 {
@@ -518,21 +396,7 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Monday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Monday");
             }
         }
         private void TuesdayCB_CheckedChanged(object sender, RoutedEventArgs e)
@@ -542,21 +406,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Tuesday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Tuesday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Tuesday");
                 }
                 else
                 {
@@ -566,21 +416,7 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Tuesday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Tuesday");
             }
         }
         private void WednesdayCB_CheckedChanged(object sender, RoutedEventArgs e)
@@ -590,21 +426,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Wednesday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Wednesday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Wednesday");
                 }
                 else
                 {
@@ -614,21 +436,7 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Wednesday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Wednesday");
             }
         }
         private void ThursdayCB_CheckedChanged(object sender, RoutedEventArgs e)
@@ -638,21 +446,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Thursday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Thursday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Thursday");
                 }
                 else
                 {
@@ -662,21 +456,7 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Thursday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Thursday");
             }
         }
 
@@ -687,21 +467,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Friday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Friday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Friday");
                 }
                 else
                 {
@@ -711,21 +477,7 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Friday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Friday");
             }
         }
 
@@ -736,21 +488,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Saturday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Saturday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Saturday");
                 }
                 else
                 {
@@ -760,21 +498,7 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Saturday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Saturday");
             }
         }
 
@@ -785,21 +509,7 @@ namespace DumpApplic
             {
                 if (checkValidDailySelection("Sunday"))//only if this day is not already checked as weekly backup day
                 {
-                    string query = "update Days set State=1 where Day='Sunday'";
-                    SqlCommand command = new SqlCommand(query, sqlConnection);
-                    try
-                    {
-                        sqlConnection.Open();
-                        command.ExecuteScalar();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                    finally
-                    {
-                        sqlConnection.Close();
-                    }
+                    DataLayer.UpdateDays(1, "Sunday");
                 }
                 else
                 {
@@ -809,41 +519,18 @@ namespace DumpApplic
             }
             else
             {
-                string query = "update Days set State=0 where Day='Sunday'";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                try
-                {
-                    sqlConnection.Open();
-                    command.ExecuteScalar();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
+                DataLayer.UpdateDays(0, "Sunday");
             }
         }
 
         //initialize daily check boxes status with the info from the database
         private void initializeDailyBackupDays()
         {
-            string query = "select State from Days";//we should have 7 values
-            sqlConnection.Open();
-            SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-            SqlDataReader reader = sqlCommand.ExecuteReader();
-            int[] DayStates = new int[7];//array used to store the days check state
-            int ct = 0;
-            while (reader.Read())
-            {
-                DayStates[ct++] = reader.GetInt32(0);//read every of the 7 values from the wuery one by one and add it to the array
-            }
-            reader.Close();
-            sqlConnection.Close();
+            
+            int[] DayStates = DataLayer.GetDaysState();//array used to store the days check state
+           
             //if DayStates[i]=0 then the checkbox should be unchecked
-            for (int i = 0; i < ct; i++)
+            for (int i = 0; i < 7; i++)
             {
                 switch (i)
                 {
@@ -1010,28 +697,8 @@ namespace DumpApplic
         private void BackupPlanCalendar_SelectionDatesChanged(object sender, EventArgs e)
         {
             //getting holidays from the table with the same name and mark them as green in the calendar
-            List<string> holidays = new List<string>();
-            try
-            {
-                string query = "select Date from Holidays";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                sqlConnection.Open();
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    holidays.Add(reader.GetString(0));
-                }
-                reader.Close();
-            }
-            catch (Exception exe)
-            {
-                MessageBox.Show(exe.ToString());
-            }
-            finally
-            {
-                sqlConnection.Close();
-            }
-           
+            List<string> holidays = DataLayer.GetHolidays();
+            
             //if selected date is already marked as holiday the mark button becomes hidden and unmark button visible
             if (holidays.Contains(backupPlanCalendar.SelectedDate.Value.ToShortDateString()))
             {
@@ -1044,38 +711,12 @@ namespace DumpApplic
                 UNMarkHoliday.Visibility = Visibility.Hidden;
             }
         }
-        public string GetMonthName(int x)//returning month name using month number given as parameter
-        {
-            string[] months = new string[13];
-            months[1] = "January"; months[2] = "February"; months[3] = "March"; months[4] = "April"; months[5] = "May"; months[6] = "June";
-            months[7] = "July"; months[8] = "August"; months[9] = "September"; months[10] = "October"; months[11] = "November"; months[12] = "December";
-            return months[x];
-        }
+        
         private void BackupPlanCalendar_DisplayDateChanged(object sender, CalendarDateChangedEventArgs e)
         {
-            monthLabel.Content = GetMonthName(backupPlanCalendar.DisplayDate.Month);// label text is changing with calendar's selected month
-            string weeklyBackupDay = "";
-            try
-            {
-                string query = "select Day from Days where Weekly=1";//getting the name of weekly backup day set in database
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                sqlConnection.Open();
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    weeklyBackupDay = reader.GetString(0);
-                }
-                reader.Close();
-            }
-            catch (Exception exe)
-            {
-                MessageBox.Show(exe.ToString());
-            }
-            finally
-            {
-                sqlConnection.Close();
-            }
-            
+            monthLabel.Content = DataLayer.GetMonthName(backupPlanCalendar.DisplayDate.Month);// label text is changing with calendar's selected month
+            string weeklyBackupDay = DataLayer.GetWeeklyBackupDay();
+                       
             //we use dictionaries in order to color different the monthend backup date
             Dictionary<string, Color> MonthEndBackupDate = new Dictionary<string, Color>
             { };
@@ -1094,31 +735,18 @@ namespace DumpApplic
                 }
             }
             //searching for the rest of the weekly backup dates and add them to their dictionary
-            DateTime nextMonth = weekly.AddMonths(1);
-            if (nextMonth.Month != 1)
+            List<string> weeklyBackupDatesList = DataLayer.GetWeeklyBackupDates(weekly);
+            foreach (var data in weeklyBackupDatesList)
             {
-                while (weekly.Month < nextMonth.Month)
-                {
-                    weekly = weekly.AddDays(7);
-                    if (weekly.Month < nextMonth.Month)
-                        weeklyBackupDates.Add(weekly.ToLongDateString(), Colors.BlueViolet);
-                }
+                weeklyBackupDates.Add(data, Colors.BlueViolet);
             }
-            else
-            {
-                while (weekly.Month > nextMonth.Month)
-                {
-                    weekly = weekly.AddDays(7);
-                    if (weekly.Month > nextMonth.Month)
-                        weeklyBackupDates.Add(weekly.ToLongDateString(), Colors.BlueViolet);
-                }
-            }
+           
             monthendTV.Items.Clear();//we clear the tree view for monthend dates
             Style style = new Style(typeof(System.Windows.Controls.Primitives.CalendarDayButton));
             foreach (KeyValuePair<string, Color> item in MonthEndBackupDate)//for every entry from the dictionary
             {
                 TreeViewItem Child1Item = new TreeViewItem();//create a new treeview item
-                Child1Item.Header = GetMonthName(backupPlanCalendar.DisplayDate.Month - 1) + " Month End Backup: " + item.Key;
+                Child1Item.Header = DataLayer.GetMonthName(backupPlanCalendar.DisplayDate.Month - 1) + " Month End Backup: " + item.Key;
                 monthendTV.Items.Add(Child1Item);
                 DataTrigger trigger = new DataTrigger()//create a new style trigger
                 {
@@ -1148,27 +776,7 @@ namespace DumpApplic
             x = 1;
 
             //getting holidays from the table with the same name and mark them as green in the calendar
-            List<string> holidays = new List<string>();
-            try
-            {
-                string query = "select Date from Holidays";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                sqlConnection.Open();
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    holidays.Add(reader.GetString(0));
-                }
-                reader.Close();
-            }
-            catch (Exception exe)
-            {
-                MessageBox.Show(exe.ToString());
-            }
-            finally
-            {
-                sqlConnection.Close();
-            }
+            List<string> holidays = DataLayer.GetHolidays();
 
             Dictionary<string, Color> Holidays = new Dictionary<string, Color>
             { };//create holidays dictionary used to color them in green
@@ -1204,28 +812,8 @@ namespace DumpApplic
         private void BackupPlanCalendar_Loaded(object sender, RoutedEventArgs e)
         {
             //coloring the calendar and treeviews at first time loading
-            monthLabel.Content = GetMonthName(backupPlanCalendar.DisplayDate.Month);
-            string weeklyBackupDay = "";
-            try
-            {
-                string query = "select Day from Days where Weekly=1";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                sqlConnection.Open();
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    weeklyBackupDay = (reader.GetString(0));
-                }
-                reader.Close();
-            }
-            catch (Exception exe)
-            {
-                MessageBox.Show(exe.ToString());
-            }
-            finally
-            {
-                sqlConnection.Close();
-            }
+            monthLabel.Content = DataLayer.GetMonthName(backupPlanCalendar.DisplayDate.Month);
+            string weeklyBackupDay = DataLayer.GetWeeklyBackupDay();           
 
             Dictionary<string, Color> MonthEndBackupDate = new Dictionary<string, Color>
             { };
@@ -1244,31 +832,18 @@ namespace DumpApplic
                 }
             }
 
-            DateTime nextMonth = weekly.AddMonths(1);
-            if (nextMonth.Month != 1)
+            //searching for the rest of the weekly backup dates and add them to their dictionary
+            List<string> weeklyBackupDatesList = DataLayer.GetWeeklyBackupDates(weekly);
+            foreach (var data in weeklyBackupDatesList)
             {
-                while (weekly.Month < nextMonth.Month)
-                {
-                    weekly = weekly.AddDays(7);
-                    if (weekly.Month < nextMonth.Month)
-                        weeklyBackupDates.Add(weekly.ToLongDateString(), Colors.BlueViolet);
-                }
-            }
-            else
-            {
-                while (weekly.Month > nextMonth.Month)
-                {
-                    weekly = weekly.AddDays(7);
-                    if (weekly.Month > nextMonth.Month)
-                        weeklyBackupDates.Add(weekly.ToLongDateString(), Colors.BlueViolet);
-                }
+                weeklyBackupDates.Add(data, Colors.BlueViolet);
             }
 
             Style style = new Style(typeof(System.Windows.Controls.Primitives.CalendarDayButton));
             foreach (KeyValuePair<string, Color> item in MonthEndBackupDate)
             {
                 TreeViewItem Child1Item = new TreeViewItem();
-                Child1Item.Header = GetMonthName(backupPlanCalendar.DisplayDate.Month - 1) + " Month End Backup: " + item.Key;
+                Child1Item.Header = DataLayer.GetMonthName(backupPlanCalendar.DisplayDate.Month - 1) + " Month End Backup: " + item.Key;
                 monthendTV.Items.Add(Child1Item);
 
                 DataTrigger trigger = new DataTrigger()
@@ -1297,30 +872,8 @@ namespace DumpApplic
             x = 1;
 
             //getting holidays from the table with the same name and mark them as green in the calendar
-            List<string> holidays = new List<string>();
-            try
-            {
-                string query = "select Date from Holidays";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                sqlConnection.Open();
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    holidays.Add(reader.GetString(0));
-                }
-                reader.Close();
-            }
-            catch (Exception exe)
-            {
-                MessageBox.Show(exe.ToString());
-            }
-            finally
-            {
-                sqlConnection.Close();
-            }
-
-            Dictionary<string, Color> Holidays = new Dictionary<string, Color>
-            { };
+            List<string> holidays = DataLayer.GetHolidays();           
+            Dictionary<string, Color> Holidays = new Dictionary<string, Color> { };
             DateTime now = backupPlanCalendar.DisplayDate;
             DateTime first = new DateTime(now.Year, now.Month, 1);
             DateTime last = first.AddMonths(1).AddDays(-1);
@@ -1346,153 +899,50 @@ namespace DumpApplic
                 trigger.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(item.Value)));
                 style.Triggers.Add(trigger);
             }
-
             backupPlanCalendar.CalendarDayButtonStyle = style;
         }
 
         private void MarkHoliday_Click(object sender, RoutedEventArgs e)
-        {
-            
+        {           
             string selectedDate = backupPlanCalendar.SelectedDate.Value.ToShortDateString();
-            //MessageBox.Show(selectedDate);
-            try
-            {
-                sqlConnection.Open();
-                string query = "insert into Holidays values (@date)";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                command.Parameters.AddWithValue("@date", selectedDate);
-                command.ExecuteScalar();
-                sqlConnection.Close();
-                BackupPlanCalendar_DisplayDateChanged(backupPlanCalendar, null);
-            }
-            catch (Exception exe)
-            { MessageBox.Show(exe.ToString()); 
-            }
-            finally { sqlConnection.Close(); }
+            DataLayer.MarkOrUnmarkHoliday(1, selectedDate);//1 means we are adding a holiday
+            BackupPlanCalendar_DisplayDateChanged(backupPlanCalendar, null);
         }
 
         private void UNMarkHoliday_Click(object sender, RoutedEventArgs e)
         {
             string selectedDate = backupPlanCalendar.SelectedDate.Value.ToShortDateString();
-            try
-            {
-                sqlConnection.Open();
-                string query = "delete from Holidays where Date=@date";
-                SqlCommand command = new SqlCommand(query, sqlConnection);
-                command.Parameters.AddWithValue("@date", selectedDate);
-                command.ExecuteScalar();
-                sqlConnection.Close();
-                BackupPlanCalendar_DisplayDateChanged(backupPlanCalendar, null);
-            }
-            catch (Exception exe)
-            { MessageBox.Show(exe.ToString()); 
-            }
-            finally { sqlConnection.Close(); }
+            DataLayer.MarkOrUnmarkHoliday(0, selectedDate);//0 means we are deleting a holiday
+            BackupPlanCalendar_DisplayDateChanged(backupPlanCalendar, null);
         }
-
-
         #endregion
 
         #region Check Daily Tapes
         //this is the double click event of today tapes grid which is used to check the tapes
         private void GridTodayTapes_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {           
+        {
             CheckTapes CT = new CheckTapes();//new check tapes window
             List<string> todayTapes = new List<string>();//creating the list with barcodes of the tapes
 
             try
             {
-                List<string> dailyBackupDays = new List<string>();
-                string weeklyBackupDay = "";
-                sqlConnection.Open();
-                //get days for daily backup
-                string query = "select Day from Days where State=1";
-                SqlCommand sqlCommand = new SqlCommand(query, sqlConnection);
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    dailyBackupDays.Add(reader.GetString(0));
-                }
-                reader.Close();
-                query = "select Day from Days where Weekly=1";
-                sqlCommand = new SqlCommand(query, sqlConnection);
-                reader = sqlCommand.ExecuteReader();
-                while (reader.Read())
-                {
-                    weeklyBackupDay = reader.GetString(0);
-                }
-                reader.Close();
+                List<string> dailyBackupDays = DataLayer.GetDailyBackupDays();
+                string weeklyBackupDay = DataLayer.GetWeeklyBackupDay();                 
                 string today = DateTime.Now.AddDays(0).DayOfWeek.ToString();
-                
-
+                int x = 0;// 1 means we search daily tapes, 2 is weekly and 3 is monthly
                 if (dailyBackupDays.Contains(today))
                 {
-                    //getting the barcodes ot the daily tapes (BackupType should be Daily and Details should be DAILY TAPE 1/2/3/4 etc)
-                    query = "select BarCode from Tapes where BackupType='Daily' and Details like 'DAILY%'+@day";
-                    sqlCommand = new SqlCommand(query, sqlConnection);
-                    sqlCommand.Parameters.AddWithValue("@day", (dailyBackupDays.IndexOf(today) + 1).ToString());
-                    reader = sqlCommand.ExecuteReader();
-                    while (reader.Read())
-                    {
-                        todayTapes.Add(reader.GetString(0));
-                    }
-                    reader.Close();
+                    x = 1;
+                    todayTapes = DataLayer.GetTodayTapes(x, (dailyBackupDays.IndexOf(today) + 1).ToString(),"","","");
                     //we need to create dinamically the objects of the new windows because the number depends on the backup type
-                    List<Label> labelsList = new List<Label>();
-                    List<TextBox> tbList = new List<TextBox>();
-                    foreach (string item in todayTapes)// create label+textbox for each tape
-                    {
-                        Label lbl = new Label(); lbl.Height = 40; lbl.Width = 120; lbl.VerticalContentAlignment = VerticalAlignment.Center;
-                        lbl.FontSize = 18; lbl.FontWeight = FontWeights.Bold; lbl.Content = item;
-                        TextBox tb = new TextBox(); tb.Height = 40; tb.Width = 200; tb.FontSize = 18; tb.FontWeight = FontWeights.Bold; tb.VerticalContentAlignment = VerticalAlignment.Center;
-                        labelsList.Add(lbl); tbList.Add(tb);
-                    }
-
-                    //add all labels and textboxes to the new window
-                    for (int i = 0; i < labelsList.Count; i++)
-                    {                     
-                        CT.TapesToCheck.Children.Add(labelsList[i]);
-                        CT.TapesToCheck.Children.Add(tbList[i]);
-                    }
-
+                    CT=Helper.CreateCheckTapesWindow(todayTapes);                   
                 }
                 else if (weeklyBackupDay == today)
                 {
-
                     DateTime weekly = DateTime.Now.AddDays(0).Date;
-                    List<string> weeklyBackupDates = new List<string>();
-                    List<string> MonthEndBackupDate = new List<string>();
-                    DateTime nextMonth = weekly.AddMonths(1);
-                    DateTime first = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-
-                    for (var d = first; d < first.AddDays(7); d = d.AddDays(1))
-                    {
-                        if (d.DayOfWeek.ToString() == weeklyBackupDay)
-                        {
-                            MonthEndBackupDate.Add(d.ToLongDateString());
-                            weekly = d;
-                            break;
-                        }
-                    }
-                    if (nextMonth.Month != 1)
-                    {
-                        while (weekly.Month < nextMonth.Month)
-                        {
-                            weekly = weekly.AddDays(7);
-                            if (weekly.Month < nextMonth.Month)
-                                weeklyBackupDates.Add(weekly.ToLongDateString());
-                        }
-                    }
-                    else
-                    {
-                        while (weekly.Month > nextMonth.Month)
-                        {
-                            weekly = weekly.AddDays(7);
-                            if (weekly.Month > nextMonth.Month)
-                                weeklyBackupDates.Add(weekly.ToLongDateString());
-                        }
-                    }
-                   
+                    List<string> weeklyBackupDates = DataLayer.GetWeeklyBackupDates(weekly);
+                    List<string> MonthEndBackupDate = DataLayer.GetMonthlyBackupDate(weeklyBackupDay);
+                                      
                     DataRowView rowview = GridTodayTapes.SelectedItem as DataRowView;
                     string system = "";
                     if (rowview != null)
@@ -1506,63 +956,15 @@ namespace DumpApplic
 
                     if (weeklyBackupDates.Contains(DateTime.Now.AddDays(0).ToLongDateString()))
                     {
-                        //getting the barcode of daily tapes where BackupType is Weekly and Details are like WEEK 1/2/3/4 ETC..
-                        query = "select BarCode from Tapes where BackupType='Weekly' and System=@sys and Details like 'WEEK_'+@week+'%'";
-                        sqlCommand = new SqlCommand(query, sqlConnection);
-                        sqlCommand.Parameters.AddWithValue("@sys",system);
-                        sqlCommand.Parameters.AddWithValue("@week", (weeklyBackupDates.IndexOf(DateTime.Now.AddDays(0).ToLongDateString()) + 1).ToString());
-                        reader = sqlCommand.ExecuteReader();
-                        while (reader.Read())
-                        {
-                            todayTapes.Add(reader.GetString(0));
-                        }
-                        reader.Close();
-                        List<Label> labelsList = new List<Label>();
-                        List<TextBox> tbList = new List<TextBox>();
-                        foreach (string item in todayTapes)
-                        {
-                            // MessageBox.Show(item);
-                            Label lbl = new Label(); lbl.Height = 40; lbl.Width = 120; lbl.VerticalContentAlignment = VerticalAlignment.Center;
-                            lbl.FontSize = 18; lbl.FontWeight = FontWeights.Bold; lbl.Content = item;
-                            TextBox tb = new TextBox(); tb.Height = 40; tb.Width = 200; tb.FontSize = 18; tb.FontWeight = FontWeights.Bold; tb.VerticalContentAlignment = VerticalAlignment.Center;
-                            labelsList.Add(lbl); tbList.Add(tb);
-                        }
-
-                        for (int i = 0; i < labelsList.Count; i++)
-                        {
-                            CT.TapesToCheck.Children.Add(labelsList[i]);
-                            CT.TapesToCheck.Children.Add(tbList[i]);
-                        }
-
+                        x = 2;
+                        todayTapes = DataLayer.GetTodayTapes(x, (dailyBackupDays.IndexOf(today) + 1).ToString(), system, (weeklyBackupDates.IndexOf(DateTime.Now.AddDays(0).ToLongDateString()) + 1).ToString(), "");
+                        CT=Helper.CreateCheckTapesWindow(todayTapes);
                     }
                     else if (MonthEndBackupDate.Contains(DateTime.Now.AddDays(0).ToLongDateString()))
                     {
-                        //getting the barcodes of daily tapes if BackupType is Monthly and details like 'MARCH MONTHEND....'
-                        query = "select BarCode from Tapes where BackupType='Monthly' and System=@sys and Details like @month+' MONTHEND%'";
-                        sqlCommand = new SqlCommand(query, sqlConnection);
-                        sqlCommand.Parameters.AddWithValue("@sys", system);
-                        sqlCommand.Parameters.AddWithValue("@month", GetMonthName(DateTime.Now.AddMonths(-1).Month).ToUpper());
-                        reader = sqlCommand.ExecuteReader();
-                        while (reader.Read())
-                        {
-                            todayTapes.Add(reader.GetString(0));
-                        }
-                        reader.Close();
-                        List<Label> labelsList = new List<Label>();
-                        List<TextBox> tbList = new List<TextBox>();
-                        foreach (string item in todayTapes)
-                        {
-                            Label lbl = new Label(); lbl.Height = 40; lbl.Width = 120; lbl.VerticalContentAlignment = VerticalAlignment.Center;
-                            lbl.FontSize = 18; lbl.FontWeight = FontWeights.Bold; lbl.Content = item;
-                            TextBox tb = new TextBox(); tb.Height = 40; tb.Width = 200; tb.FontSize = 18; tb.FontWeight = FontWeights.Bold; tb.VerticalContentAlignment = VerticalAlignment.Center;
-                            labelsList.Add(lbl); tbList.Add(tb);
-                        }
-
-                        for (int i = 0; i < labelsList.Count; i++)
-                        {
-                            CT.TapesToCheck.Children.Add(labelsList[i]);
-                            CT.TapesToCheck.Children.Add(tbList[i]);
-                        }
+                        x = 3;
+                        todayTapes = DataLayer.GetTodayTapes(x, (dailyBackupDays.IndexOf(today) + 1).ToString(), system, "", DataLayer.GetMonthName(DateTime.Now.AddMonths(-1).Month).ToUpper());
+                        CT = Helper.CreateCheckTapesWindow(todayTapes);
                     }
                 }            
             }
@@ -1574,21 +976,9 @@ namespace DumpApplic
             {
                 sqlConnection.Close();
             }
-
-
             //searching the history table to check if the tapes for today were already checked or not
-            string query1 = "select distinct Checked from History where Date=@date and Tape=@tape";
-            SqlCommand sqlCommand1 = new SqlCommand(query1, sqlConnection);
-            sqlCommand1.Parameters.AddWithValue("@date", DateTime.Now.ToShortDateString());
-            sqlCommand1.Parameters.AddWithValue("@tape", todayTapes[0]);
             string TapesAlreadyChecked = "";
-            sqlConnection.Open();
-            try
-            {
-                var obj = sqlCommand1.ExecuteScalar();
-                TapesAlreadyChecked = (obj == null ? "" : obj.ToString());
-            }
-            catch(Exception exe) { MessageBox.Show(exe.ToString()); };
+            TapesAlreadyChecked = DataLayer.CheckTapesHistory(DateTime.Now.ToShortDateString(),todayTapes[0]);
             if (TapesAlreadyChecked=="")//if daily tapes are not already checked then the new Check tapes window will pop up
                 CT.Show();
             else { MessageBox.Show("Tapes already checked!"); }
@@ -1604,8 +994,6 @@ namespace DumpApplic
         private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
         {
             Environment.Exit(0);
-        }
-
-        
+        }     
     }
     } 
